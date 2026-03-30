@@ -57,11 +57,28 @@ body {
 }
 
 .upload-zone:hover {
-  border-color: #0ea5e9;
-  background: #f0f9ff;
+  border-color: #094CAD;
+  background: #f0f7ff;
 }
 
 .upload-zone.dragging {
-  border-color: #0ea5e9;
-  background: #e0f2fe;
+  border-color: #094CAD;
+  background: #e0f0fa;
+}
+
+/* Primary button override */
+.bg-primary-600 {
+  background-color: #094CAD !important;
+}
+
+.bg-primary-600:hover {
+  background-color: #073d9e !important;
+}
+
+.text-primary-600 {
+  color: #094CAD !important;
+}
+
+.text-primary-600:hover {
+  color: #073d9e !important;
 }

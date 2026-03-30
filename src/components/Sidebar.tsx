@@ -14,11 +14,17 @@ const menuItems = [
 
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
-    <aside className="w-64 min-h-screen bg-neutral-900 text-white flex flex-col">
+    <aside className="w-64 min-h-screen bg-primary flex flex-col">
       {/* Logo */}
-      <div className="p-6 border-b border-neutral-800">
-        <h1 className="text-xl font-bold">Corenic</h1>
-        <p className="text-sm text-neutral-400">Executive Dashboard</p>
+      <div className="p-6 border-b border-white/20">
+        <div className="flex items-center gap-3">
+          <img 
+            src="/coreniclogo.png" 
+            alt="Corenic" 
+            className="h-12 w-auto"
+          />
+        </div>
+        <p className="text-sm text-white/70 mt-2">Executive Dashboard</p>
       </div>
 
       {/* Navigation */}
@@ -29,8 +35,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             onClick={() => onTabChange(item.id)}
             className={`w-full flex items-center gap-3 px-6 py-3 text-left transition-colors ${
               activeTab === item.id
-                ? 'bg-primary-600 text-white'
-                : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'
+                ? 'bg-white/20 text-white'
+                : 'text-white/70 hover:bg-white/10 hover:text-white'
             }`}
           >
             <span>{item.icon}</span>
@@ -40,8 +46,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-neutral-800">
-        <p className="text-xs text-neutral-500 text-center">
+      <div className="p-4 border-t border-white/20">
+        <p className="text-xs text-white/50 text-center">
           © 2026 Corenic Construction
         </p>
       </div>
