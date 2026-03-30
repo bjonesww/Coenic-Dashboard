@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { addRecords } from '@/lib/dataStore';
+import { addRecords, getRecords, getKPIs } from '@/lib/dataStore';
 import { parseFile } from '@/lib/parser';
 
 export async function POST(request: NextRequest) {
@@ -27,8 +27,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('Processing file:', file.name);
+    
     const buffer = await file.arrayBuffer();
     const records = parseFile(Buffer.from(buffer));
+
+    console.log('Parsed records:', records.length);
 
     if (records.length === 0) {
       return NextResponse.json(
@@ -37,18 +41,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Add uploaded timestamp
-    const recordsWithTimestamp = records.map(r => ({
-      ...r,
-      uploadedAt: new Date().toISOString(),
-    }));
-
-    await addRecords(recordsWithTimestamp);
+    // Add records to database
+    await addRecords(records);
+    
+    // Fetch updated data
+    const updatedRecords = await getRecords();
+    const kpis = await getKPIs();
 
     return NextResponse.json({
       success: true,
       recordsAdded: records.length,
       message: `Successfully imported ${records.length} records`,
+      records: updatedRecords,
+      kpis: kpis
     });
   } catch (error) {
     console.error('Error processing upload:', error);

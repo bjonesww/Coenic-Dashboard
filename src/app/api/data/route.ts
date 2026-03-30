@@ -6,7 +6,7 @@ export async function GET() {
     // Initialize database tables on first run
     await initializeDatabase();
     
-    const records = getRecords();
+    const records = await getRecords();
     const kpis = await getKPIs();
 
     return NextResponse.json({
