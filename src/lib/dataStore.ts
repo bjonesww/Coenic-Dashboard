@@ -1,240 +1,79 @@
-import { neon } from '@neondatabase/serverless';
+import { promises as fs } from 'fs';
+import { join } from 'path';
 
-const sql = neon(process.env.DATABASE_URL || '');
+const DATA_FILE = join(process.cwd(), 'data.json');
 
-export async function initializeDatabase() {
+export interface FinancialRecord {
+  id?: number;
+  month: string;
+  revenue: number;
+  directCosts: number;
+  grossProfit: number;
+  operatingIncome: number;
+  netIncome: number;
+  cash: number;
+  backlog: number;
+  activeProjects: number;
+  headcount: number;
+  dso: number;
+  uploadedAt?: string;
+}
+
+interface DataStore {
+  records: FinancialRecord[];
+}
+
+async function readData(): Promise<DataStore> {
   try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS financial_records (
-        id SERIAL PRIMARY KEY,
-        month VARCHAR(50) NOT NULL,
-        revenue DECIMAL(15,2) DEFAULT 0,
-        direct_costs DECIMAL(15,2) DEFAULT 0,
-        gross_profit DECIMAL(15,2) DEFAULT 0,
-        operating_income DECIMAL(15,2) DEFAULT 0,
-        net_income DECIMAL(15,2) DEFAULT 0,
-        cash DECIMAL(15,2) DEFAULT 0,
-        backlog DECIMAL(15,2) DEFAULT 0,
-        active_projects INTEGER DEFAULT 0,
-        headcount INTEGER DEFAULT 0,
-        dso DECIMAL(10,2) DEFAULT 0,
-        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-    console.log('Database initialized successfully');
-  } catch (error) {
-    console.error('Error initializing database:', error);
+    const content = await fs.readFile(DATA_FILE, 'utf-8');
+    return JSON.parse(content);
+  } catch {
+    return { records: [] };
   }
 }
 
-export async function getRecords() {
-  try {
-    if (!process.env.DATABASE_URL) {
-      console.error('DATABASE_URL is not defined');
-      return [];
-    }
-    
-    const result = await sql`
-      SELECT 
-        id, month, revenue, direct_costs, gross_profit, 
-        operating_income, net_income, cash, backlog, 
-        active_projects, headcount, dso, uploaded_at
-      FROM financial_records 
-      ORDER BY uploaded_at ASC, id ASC
-    `;
-    
-    console.log('Fetched records:', result.length);
-    
-    return result.map((row: any) => ({
-      id: row.id,
-      month: row.month,
-      revenue: parseFloat(row.revenue) || 0,
-      directCosts: parseFloat(row.direct_costs) || 0,
-      grossProfit: parseFloat(row.gross_profit) || 0,
-      operatingIncome: parseFloat(row.operating_income) || 0,
-      netIncome: parseFloat(row.net_income) || 0,
-      cash: parseFloat(row.cash) || 0,
-      backlog: parseFloat(row.backlog) || 0,
-      activeProjects: row.active_projects || 0,
-      headcount: row.headcount || 0,
-      dso: parseFloat(row.dso) || 0,
-      uploadedAt: row.uploaded_at,
-    }));
-  } catch (error) {
-    console.error('Error fetching records:', error);
-    return [];
-  }
+async function writeData(data: DataStore): Promise<void> {
+  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-export async function addRecords(records: any[]) {
-  try {
-    if (!process.env.DATABASE_URL) {
-      console.error('DATABASE_URL is not defined');
-      return;
-    }
-    
-    for (const record of records) {
-      await sql`
-        INSERT INTO financial_records (
-          month, revenue, direct_costs, gross_profit,
-          operating_income, net_income, cash, backlog,
-          active_projects, headcount, dso
-        ) VALUES (
-          ${record.month},
-          ${record.revenue},
-          ${record.directCosts},
-          ${record.grossProfit},
-          ${record.operatingIncome},
-          ${record.netIncome},
-          ${record.cash},
-          ${record.backlog},
-          ${record.activeProjects},
-          ${record.headcount},
-          ${record.dso}
-        )
-      `;
-    }
-    console.log(`Added ${records.length} records to database`);
-  } catch (error) {
-    console.error('Error adding records:', error);
-    throw error;
-  }
+export async function getRecords(): Promise<FinancialRecord[]> {
+  const data = await readData();
+  return data.records;
 }
 
-export async function clearRecords() {
-  try {
-    await sql`DELETE FROM financial_records`;
-    console.log('Cleared all records');
-  } catch (error) {
-    console.error('Error clearing records:', error);
-  }
+export async function addRecords(records: FinancialRecord[]): Promise<void> {
+  const data = await readData();
+  const newRecords = records.map((r, i) => ({
+    ...r,
+    id: data.records.length + i + 1,
+    uploadedAt: new Date().toISOString(),
+  }));
+  data.records = [...data.records, ...newRecords];
+  await writeData(data);
 }
 
-export async function getLatestRecord() {
-  try {
-    const result = await sql`
-      SELECT * FROM financial_records 
-      ORDER BY uploaded_at DESC, id DESC 
-      LIMIT 1
-    `;
-  
-    if (result.length === 0) return null;
-    
-    const row = result[0];
-    return {
-      id: row.id,
-      month: row.month,
-      revenue: parseFloat(row.revenue) || 0,
-      directCosts: parseFloat(row.direct_costs) || 0,
-      grossProfit: parseFloat(row.gross_profit) || 0,
-      operatingIncome: parseFloat(row.operating_income) || 0,
-      netIncome: parseFloat(row.net_income) || 0,
-      cash: parseFloat(row.cash) || 0,
-      backlog: parseFloat(row.backlog) || 0,
-      activeProjects: row.active_projects || 0,
-      headcount: row.headcount || 0,
-      dso: parseFloat(row.dso) || 0,
-      uploadedAt: row.uploaded_at,
-    };
-  } catch (error) {
-    console.error('Error getting latest record:', error);
-    return null;
-  }
+export async function clearRecords(): Promise<void> {
+  await writeData({ records: [] });
 }
 
-export async function getPreviousRecord() {
-  try {
-    const result = await sql`
-      SELECT * FROM financial_records 
-      ORDER BY uploaded_at DESC, id DESC 
-      OFFSET 1 LIMIT 1
-    `;
-  
-    if (result.length === 0) return null;
-    
-    const row = result[0];
-    return {
-      id: row.id,
-      month: row.month,
-      revenue: parseFloat(row.revenue) || 0,
-      directCosts: parseFloat(row.direct_costs) || 0,
-      grossProfit: parseFloat(row.gross_profit) || 0,
-      operatingIncome: parseFloat(row.operating_income) || 0,
-      netIncome: parseFloat(row.net_income) || 0,
-      cash: parseFloat(row.cash) || 0,
-      backlog: parseFloat(row.backlog) || 0,
-      activeProjects: row.active_projects || 0,
-      headcount: row.headcount || 0,
-      dso: parseFloat(row.dso) || 0,
-      uploadedAt: row.uploaded_at,
-    };
-  } catch (error) {
-    console.error('Error getting previous record:', error);
-    return null;
-  }
+export async function getLatestRecord(): Promise<FinancialRecord | null> {
+  const records = await getRecords();
+  if (records.length === 0) return null;
+  return records[records.length - 1];
+}
+
+export async function getPreviousRecord(): Promise<FinancialRecord | null> {
+  const records = await getRecords();
+  if (records.length < 2) return null;
+  return records[records.length - 2];
 }
 
 export async function getKPIs() {
-  try {
-    const latest = await getLatestRecord();
-    const previous = await getPreviousRecord();
-    
-    if (!latest) {
-      return {
-        revenue: { value: 0, trend: 0, previousValue: 0 },
-        netIncome: { value: 0, trend: 0, previousValue: 0 },
-        cash: { value: 0, trend: 0, previousValue: 0 },
-        backlog: { value: 0, trend: 0, previousValue: 0 },
-        activeProjects: { value: 0, trend: 0, previousValue: 0 },
-        headcount: { value: 0, trend: 0, previousValue: 0 },
-        dso: { value: 0, trend: 0, previousValue: 0 },
-      };
-    }
-
-    const calculateTrend = (current: number, prev: number) => {
-      if (prev === 0) return 0;
-      return ((current - prev) / Math.abs(prev)) * 100;
-    };
-
-    return {
-      revenue: {
-        value: latest.revenue,
-        trend: previous ? calculateTrend(latest.revenue, previous.revenue) : 0,
-        previousValue: previous?.revenue ?? 0,
-      },
-      netIncome: {
-        value: latest.netIncome,
-        trend: previous ? calculateTrend(latest.netIncome, previous.netIncome) : 0,
-        previousValue: previous?.netIncome ?? 0,
-      },
-      cash: {
-        value: latest.cash,
-        trend: previous ? calculateTrend(latest.cash, previous.cash) : 0,
-        previousValue: previous?.cash ?? 0,
-      },
-      backlog: {
-        value: latest.backlog,
-        trend: previous ? calculateTrend(latest.backlog, previous.backlog) : 0,
-        previousValue: previous?.backlog ?? 0,
-      },
-      activeProjects: {
-        value: latest.activeProjects,
-        trend: previous ? calculateTrend(latest.activeProjects, previous.activeProjects) : 0,
-        previousValue: previous?.activeProjects ?? 0,
-      },
-      headcount: {
-        value: latest.headcount,
-        trend: previous ? calculateTrend(latest.headcount, previous.headcount) : 0,
-        previousValue: previous?.headcount ?? 0,
-      },
-      dso: {
-        value: latest.dso,
-        trend: previous ? calculateTrend(latest.dso, previous.dso) : 0,
-        previousValue: previous?.dso ?? 0,
-      },
-    };
-  } catch (error) {
-    console.error('Error getting KPIs:', error);
+  const records = await getRecords();
+  const latest = records.length > 0 ? records[records.length - 1] : null;
+  const previous = records.length > 1 ? records[records.length - 2] : null;
+  
+  if (!latest) {
     return {
       revenue: { value: 0, trend: 0, previousValue: 0 },
       netIncome: { value: 0, trend: 0, previousValue: 0 },
@@ -245,4 +84,47 @@ export async function getKPIs() {
       dso: { value: 0, trend: 0, previousValue: 0 },
     };
   }
+
+  const calculateTrend = (current: number, prev: number) => {
+    if (prev === 0) return 0;
+    return ((current - prev) / Math.abs(prev)) * 100;
+  };
+
+  return {
+    revenue: {
+      value: latest.revenue,
+      trend: previous ? calculateTrend(latest.revenue, previous.revenue) : 0,
+      previousValue: previous?.revenue ?? 0,
+    },
+    netIncome: {
+      value: latest.netIncome,
+      trend: previous ? calculateTrend(latest.netIncome, previous.netIncome) : 0,
+      previousValue: previous?.netIncome ?? 0,
+    },
+    cash: {
+      value: latest.cash,
+      trend: previous ? calculateTrend(latest.cash, previous.cash) : 0,
+      previousValue: previous?.cash ?? 0,
+    },
+    backlog: {
+      value: latest.backlog,
+      trend: previous ? calculateTrend(latest.backlog, previous.backlog) : 0,
+      previousValue: previous?.backlog ?? 0,
+    },
+    activeProjects: {
+      value: latest.activeProjects,
+      trend: previous ? calculateTrend(latest.activeProjects, previous.activeProjects) : 0,
+      previousValue: previous?.activeProjects ?? 0,
+    },
+    headcount: {
+      value: latest.headcount,
+      trend: previous ? calculateTrend(latest.headcount, previous.headcount) : 0,
+      previousValue: previous?.headcount ?? 0,
+    },
+    dso: {
+      value: latest.dso,
+      trend: previous ? calculateTrend(latest.dso, previous.dso) : 0,
+      previousValue: previous?.dso ?? 0,
+    },
+  };
 }
