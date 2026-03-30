@@ -1,34 +1,144 @@
-import { FinancialRecord } from './types';
+import { neon } from '@neondatabase/serverless';
 
-// In-memory store (will persist while server is running)
-// For production, this would be SQLite or a database
-let financialRecords: FinancialRecord[] = [];
+const sql = neon(process.env.DATABASE_URL!);
 
-export function getRecords(): FinancialRecord[] {
-  return financialRecords;
+export async function initializeDatabase() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS financial_records (
+      id SERIAL PRIMARY KEY,
+      month VARCHAR(50) NOT NULL,
+      revenue DECIMAL(15,2) DEFAULT 0,
+      direct_costs DECIMAL(15,2) DEFAULT 0,
+      gross_profit DECIMAL(15,2) DEFAULT 0,
+      operating_income DECIMAL(15,2) DEFAULT 0,
+      net_income DECIMAL(15,2) DEFAULT 0,
+      cash DECIMAL(15,2) DEFAULT 0,
+      backlog DECIMAL(15,2) DEFAULT 0,
+      active_projects INTEGER DEFAULT 0,
+      headcount INTEGER DEFAULT 0,
+      dso DECIMAL(10,2) DEFAULT 0,
+      uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `;
 }
 
-export function addRecords(records: FinancialRecord[]): void {
-  financialRecords = [...financialRecords, ...records];
+export async function getRecords() {
+  try {
+    const result = await sql`
+      SELECT 
+        id, month, revenue, direct_costs, gross_profit, 
+        operating_income, net_income, cash, backlog, 
+        active_projects, headcount, dso, uploaded_at
+      FROM financial_records 
+      ORDER BY uploaded_at ASC, id ASC
+    `;
+    
+    return result.map((row: any) => ({
+      id: row.id,
+      month: row.month,
+      revenue: parseFloat(row.revenue) || 0,
+      directCosts: parseFloat(row.direct_costs) || 0,
+      grossProfit: parseFloat(row.gross_profit) || 0,
+      operatingIncome: parseFloat(row.operating_income) || 0,
+      netIncome: parseFloat(row.net_income) || 0,
+      cash: parseFloat(row.cash) || 0,
+      backlog: parseFloat(row.backlog) || 0,
+      activeProjects: row.active_projects || 0,
+      headcount: row.headcount || 0,
+      dso: parseFloat(row.dso) || 0,
+      uploadedAt: row.uploaded_at,
+    }));
+  } catch (error) {
+    console.error('Error fetching records:', error);
+    return [];
+  }
 }
 
-export function clearRecords(): void {
-  financialRecords = [];
+export async function addRecords(records: any[]) {
+  for (const record of records) {
+    await sql`
+      INSERT INTO financial_records (
+        month, revenue, direct_costs, gross_profit,
+        operating_income, net_income, cash, backlog,
+        active_projects, headcount, dso
+      ) VALUES (
+        ${record.month},
+        ${record.revenue},
+        ${record.directCosts},
+        ${record.grossProfit},
+        ${record.operatingIncome},
+        ${record.netIncome},
+        ${record.cash},
+        ${record.backlog},
+        ${record.activeProjects},
+        ${record.headcount},
+        ${record.dso}
+      )
+    `;
+  }
 }
 
-export function getLatestRecord(): FinancialRecord | null {
-  if (financialRecords.length === 0) return null;
-  return financialRecords[financialRecords.length - 1];
+export async function clearRecords() {
+  await sql`DELETE FROM financial_records`;
 }
 
-export function getPreviousRecord(): FinancialRecord | null {
-  if (financialRecords.length < 2) return null;
-  return financialRecords[financialRecords.length - 2];
+export async function getLatestRecord() {
+  const result = await sql`
+    SELECT * FROM financial_records 
+    ORDER BY uploaded_at DESC, id DESC 
+    LIMIT 1
+  `;
+  
+  if (result.length === 0) return null;
+  
+  const row = result[0];
+  return {
+    id: row.id,
+    month: row.month,
+    revenue: parseFloat(row.revenue) || 0,
+    directCosts: parseFloat(row.direct_costs) || 0,
+    grossProfit: parseFloat(row.gross_profit) || 0,
+    operatingIncome: parseFloat(row.operating_income) || 0,
+    netIncome: parseFloat(row.net_income) || 0,
+    cash: parseFloat(row.cash) || 0,
+    backlog: parseFloat(row.backlog) || 0,
+    activeProjects: row.active_projects || 0,
+    headcount: row.headcount || 0,
+    dso: parseFloat(row.dso) || 0,
+    uploadedAt: row.uploaded_at,
+  };
 }
 
-export function getKPIs() {
-  const latest = getLatestRecord();
-  const previous = getPreviousRecord();
+export async function getPreviousRecord() {
+  const result = await sql`
+    SELECT * FROM financial_records 
+    ORDER BY uploaded_at DESC, id DESC 
+    OFFSET 1 LIMIT 1
+  `;
+  
+  if (result.length === 0) return null;
+  
+  const row = result[0];
+  return {
+    id: row.id,
+    month: row.month,
+    revenue: parseFloat(row.revenue) || 0,
+    directCosts: parseFloat(row.direct_costs) || 0,
+    grossProfit: parseFloat(row.gross_profit) || 0,
+    operatingIncome: parseFloat(row.operating_income) || 0,
+    netIncome: parseFloat(row.net_income) || 0,
+    cash: parseFloat(row.cash) || 0,
+    backlog: parseFloat(row.backlog) || 0,
+    activeProjects: row.active_projects || 0,
+    headcount: row.headcount || 0,
+    dso: parseFloat(row.dso) || 0,
+    uploadedAt: row.uploaded_at,
+  };
+}
+
+export async function getKPIs() {
+  const latest = await getLatestRecord();
+  const previous = await getPreviousRecord();
   
   if (!latest) {
     return {

@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
-import { getRecords, getKPIs } from '@/lib/dataStore';
+import { getRecords, getKPIs, initializeDatabase } from '@/lib/dataStore';
 
 export async function GET() {
   try {
+    // Initialize database tables on first run
+    await initializeDatabase();
+    
     const records = getRecords();
-    const kpis = getKPIs();
+    const kpis = await getKPIs();
 
     return NextResponse.json({
       records,

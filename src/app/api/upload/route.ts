@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       uploadedAt: new Date().toISOString(),
     }));
 
-    addRecords(recordsWithTimestamp);
+    await addRecords(recordsWithTimestamp);
 
     return NextResponse.json({
       success: true,
