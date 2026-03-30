@@ -1,9 +1,46 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import * as XLSX from 'xlsx';
+import { FinancialRecord } from '@/lib/dataStore';
 
 interface FileUploadProps {
-  onUploadComplete: () => void;
+  onUploadComplete: (records: FinancialRecord[]) => void;
+}
+
+function parseFileClient(file: File): Promise<FinancialRecord[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+        
+        const records: FinancialRecord[] = json.map((row: any) => ({
+          month: row.Month || row.month || row.Date || row.Period || '',
+          revenue: parseFloat(row.Revenue || row.revenue || row.Sales || row['Total Revenue'] || 0) || 0,
+          directCosts: parseFloat(row['Direct Costs'] || row['Cost of Revenue'] || row.COGS || row.directCosts || 0) || 0,
+          grossProfit: parseFloat(row['Gross Profit'] || row['Gross Margin'] || row.grossProfit || 0) || 0,
+          operatingIncome: parseFloat(row['Operating Income'] || row['Operating Profit'] || row.EBIT || row.operatingIncome || 0) || 0,
+          netIncome: parseFloat(row['Net Income'] || row['Net Profit'] || row['Net Earnings'] || row.netIncome || 0) || 0,
+          cash: parseFloat(row.Cash || row['Cash Position'] || row['Cash Balance'] || row.cash || 0) || 0,
+          backlog: parseFloat(row.Backlog || row['Backlog Value'] || row.Pipeline || row.backlog || 0) || 0,
+          activeProjects: parseInt(row['Active Projects'] || row.Projects || row['Current Projects'] || row.activeProjects || 0) || 0,
+          headcount: parseInt(row.Headcount || row.Employees || row.Staff || row.headcount || 0) || 0,
+          dso: parseFloat(row.DSO || ['Days Sales Outstanding'] || row.dso || 0) || 0,
+        })).filter(r => r.month);
+        
+        resolve(records);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 export default function FileUpload({ onUploadComplete }: FileUploadProps) {
@@ -15,25 +52,19 @@ export default function FileUpload({ onUploadComplete }: FileUploadProps) {
     setIsUploading(true);
     setMessage(null);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setMessage({ type: 'success', text: result.message });
-        onUploadComplete();
-      } else {
-        setMessage({ type: 'error', text: result.error });
+      const records = await parseFileClient(file);
+      
+      if (records.length === 0) {
+        setMessage({ type: 'error', text: 'No valid records found in file. Please check the format.' });
+        setIsUploading(false);
+        return;
       }
+
+      onUploadComplete(records);
+      setMessage({ type: 'success', text: `Successfully imported ${records.length} records` });
     } catch (error) {
-      setMessage({ type: 'error', text: 'Upload failed. Please try again.' });
+      setMessage({ type: 'error', text: 'Failed to parse file. Please check the format.' });
     } finally {
       setIsUploading(false);
     }

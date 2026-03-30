@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import KPICard from '@/components/KPICard';
 import RevenueChart from '@/components/RevenueChart';
@@ -8,7 +8,7 @@ import ProfitChart from '@/components/ProfitChart';
 import CashBacklogChart from '@/components/CashBacklogChart';
 import ProjectsChart from '@/components/ProjectsChart';
 import FileUpload from '@/components/FileUpload';
-import { FinancialRecord } from '@/lib/types';
+import { getRecords, addRecords, getKPIs, FinancialRecord } from '@/lib/dataStore';
 
 interface KPIData {
   revenue: { value: number; trend: number; previousValue: number };
@@ -26,25 +26,21 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
-    try {
-      const response = await fetch('/api/data');
-      const data = await response.json();
-      if (data.records) setRecords(data.records);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
+  const loadData = useCallback(() => {
+    const storedRecords = getRecords();
+    setRecords(storedRecords);
+    setKpis(getKPIs(storedRecords));
+    setLoading(false);
   }, []);
 
-  const handleUploadComplete = () => {
-    fetchData();
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleUploadComplete = (newRecords: FinancialRecord[]) => {
+    const updated = addRecords(newRecords);
+    setRecords(updated);
+    setKpis(getKPIs(updated));
   };
 
   if (loading) {
@@ -71,7 +67,7 @@ export default function Dashboard() {
                 <h1 className="text-2xl font-bold text-neutral-900">Executive Overview</h1>
                 <p className="text-neutral-500 mt-1">
                   {records.length > 0 
-                    ? `Last updated: ${new Date(records[records.length - 1]?.uploadedAt || '').toLocaleDateString()}`
+                    ? `Data loaded: ${records.length} records`
                     : 'No data uploaded yet'}
                 </p>
               </div>

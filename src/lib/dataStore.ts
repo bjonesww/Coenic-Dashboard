@@ -1,7 +1,6 @@
-import { promises as fs } from 'fs';
-import { join } from 'path';
+'use client';
 
-const DATA_FILE = join(process.cwd(), 'data.json');
+import { useState, useEffect } from 'react';
 
 export interface FinancialRecord {
   id?: number;
@@ -19,57 +18,37 @@ export interface FinancialRecord {
   uploadedAt?: string;
 }
 
-interface DataStore {
-  records: FinancialRecord[];
-}
+const STORAGE_KEY = 'corenic-financial-data';
 
-async function readData(): Promise<DataStore> {
+export function getRecords(): FinancialRecord[] {
+  if (typeof window === 'undefined') return [];
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (!data) return [];
   try {
-    const content = await fs.readFile(DATA_FILE, 'utf-8');
-    return JSON.parse(content);
+    const parsed = JSON.parse(data);
+    return parsed.records || [];
   } catch {
-    return { records: [] };
+    return [];
   }
 }
 
-async function writeData(data: DataStore): Promise<void> {
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
+export function saveRecords(records: FinancialRecord[]): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ records }));
 }
 
-export async function getRecords(): Promise<FinancialRecord[]> {
-  const data = await readData();
-  return data.records;
-}
-
-export async function addRecords(records: FinancialRecord[]): Promise<void> {
-  const data = await readData();
-  const newRecords = records.map((r, i) => ({
+export function addRecords(newRecords: FinancialRecord[]): FinancialRecord[] {
+  const existing = getRecords();
+  const updated = [...existing, ...newRecords.map((r, i) => ({
     ...r,
-    id: data.records.length + i + 1,
+    id: existing.length + i + 1,
     uploadedAt: new Date().toISOString(),
-  }));
-  data.records = [...data.records, ...newRecords];
-  await writeData(data);
+  }))];
+  saveRecords(updated);
+  return updated;
 }
 
-export async function clearRecords(): Promise<void> {
-  await writeData({ records: [] });
-}
-
-export async function getLatestRecord(): Promise<FinancialRecord | null> {
-  const records = await getRecords();
-  if (records.length === 0) return null;
-  return records[records.length - 1];
-}
-
-export async function getPreviousRecord(): Promise<FinancialRecord | null> {
-  const records = await getRecords();
-  if (records.length < 2) return null;
-  return records[records.length - 2];
-}
-
-export async function getKPIs() {
-  const records = await getRecords();
+export function getKPIs(records: FinancialRecord[]) {
   const latest = records.length > 0 ? records[records.length - 1] : null;
   const previous = records.length > 1 ? records[records.length - 2] : null;
   
